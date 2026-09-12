@@ -34,3 +34,4 @@ typecheck: setup
 # Run the existing dependency-free hackathon check without provisioning the unused Expo tree.
 check:
     node --experimental-strip-types apps/mobile/src/loci.check.ts
+    node --test apps/pixel-web/loci-response.test.mjs
