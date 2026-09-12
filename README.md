@@ -1,54 +1,151 @@
-# job-site-memory-mobile
+# Job Site Memory Mobile
 
-Phone client for [0xL0C1](https://github.com/LincForge/0xl0c1) job memory. A trade tech snaps an object,
-dictates a question, and gets back an arrival brief. When two objects look alike, it asks which one
-(the confirm band). Nothing is saved until the tech taps Commit.
+A text-first, mobile-friendly job-memory page for field technicians. The current hackathon MVP
+runs in Chrome on a Google Pixel; it does not require a native app build.
 
-Prototype: local-only, not yet built against the kit. See [docs/DESIGN.md](docs/DESIGN.md).
+The page can observe an object, look up matching job memory, resolve ambiguous candidates, preview
+a lesson, discard it, or save it after an explicit **Commit** tap. It runs with throwaway in-memory
+data by default and can proxy the same operations to a configured 0xL0C1 MCP endpoint.
 
-## Pixel browser MVP
+## Current state
 
-Run the dependency-free, throwaway demo from the repository root:
+- The working MVP is `apps/pixel-web`: one HTML page and a Node HTTP server with no browser build
+  pipeline.
+- The default demo store is process memory. Restarting the server clears observed objects and
+  lessons.
+- A preview token is required before commit, is single-use, and expires after ten minutes.
+- The optional `LOCI_MCP_URL` stays on the server and is never sent to the browser.
+- Camera, vision, native packaging, authentication, and production persistence are out of scope.
+- `apps/mobile` contains the earlier React Native/CopilotKit integration prototype. It is not the
+  page served by the current MVP, and its whole-package typecheck remains incomplete.
+
+The feasibility history and scope decision are recorded in
+[`docs/design/ADR-0001-hackathon-mobile-no-go.md`](docs/design/ADR-0001-hackathon-mobile-no-go.md).
+
+## Prerequisites
+
+- Node.js 22 or newer
+- pnpm 9.12
+- [`just`](https://just.systems/) for the documented recipes
+- Tailscale on both devices only when opening the page from a Pixel over the tailnet
+
+Install the locked workspace dependencies once:
 
 ```bash
-pnpm pixel
+just setup
 ```
 
-It listens on `0.0.0.0:8787`. Set `PORT` to choose another port. Set `LOCI_MCP_URL` to an MCP
-HTTP endpoint to proxy `observe`, `ask`, and preview/commit calls server-side; the URL is never
-sent to the browser. Without it, seeded and newly observed records live only in process memory.
+## Build
 
-Hackathon Pixel handoff on this Tailscale host:
+The Pixel page is served directly, so there is no generated bundle. The build recipe validates the
+server's JavaScript syntax and confirms the page asset exists:
 
 ```bash
-PORT=8796 HOST=0.0.0.0 pnpm pixel
+just build
 ```
 
-Open `http://100.116.151.118:8796/` on the Pixel while it is connected to the tailnet.
+## Run locally
+
+Start a localhost-only development server:
+
+```bash
+just pixel
+```
+
+Open <http://127.0.0.1:8787/>. The default mode is clearly labeled **THROWAWAY DEMO** in the page.
+
+The recipe accepts optional host and port arguments:
+
+```bash
+just pixel 127.0.0.1 9000
+```
+
+In another terminal, verify the running server:
+
+```bash
+just pixel-health
+just pixel-health http://127.0.0.1:9000
+```
+
+A successful response resembles:
+
+```json
+{"ok":true,"mode":"throwaway-demo","host":"127.0.0.1","port":8787}
+```
+
+## Run on a Pixel through Tailscale
+
+Start the server on all host interfaces using the dedicated tailnet recipe:
+
+```bash
+just pixel-tailscale
+```
+
+Find the host's current tailnet address with `tailscale ip -4`, then open
+`http://<tailscale-ip>:8796/` on a Pixel connected to the same tailnet. On the current hackathon
+host, the URL is <http://100.116.151.118:8796/>.
+
+Verify that exact route from the host with:
+
+```bash
+just pixel-health http://100.116.151.118:8796
+```
+
+Binding to `0.0.0.0` makes the process reachable on every permitted host interface. Use the
+localhost recipe when tailnet access is not needed.
+
+## Run with a real Loci endpoint
+
+Pass the MCP HTTP endpoint to the server-side proxy:
+
+```bash
+just pixel-loci "https://example.invalid/loci-token/mcp"
+```
+
+Optional host and port arguments follow the URL:
+
+```bash
+just pixel-loci "https://example.invalid/loci-token/mcp" 0.0.0.0 8796
+```
+
+In Loci mode, `observe`, `ask`, preview, and commit are forwarded as JSON-RPC `tools/call`
+requests. Do not put the endpoint or its token in browser code or commit it to the repository.
+
+## Functional verification
+
+No new automated test suite is required for this hackathon page. After starting it, verify the
+actual flow in the browser:
+
+1. Confirm the mode badge says **THROWAWAY DEMO** or **LOCI MCP**.
+2. Observe an object and confirm an `observed` response.
+3. Ask memory, choose a candidate when prompted, and confirm it resumes the selected object.
+4. Preview a lesson, then verify **Discard** reports `saved: false`.
+5. Preview again and tap **Commit explicitly**; verify it reports `saved: true`.
+
+The existing narrow transport/write-gate check remains available as `just check`. It is not a
+browser test and does not replace the manual page flow.
+
+## Recipes
+
+| Recipe | Purpose |
+| --- | --- |
+| `just setup` | Install exactly the dependencies in `pnpm-lock.yaml`. |
+| `just build` | Validate the server syntax and static page asset. |
+| `just pixel [host] [port]` | Run the page locally; defaults to `127.0.0.1:8787`. |
+| `just pixel-tailscale [port]` | Bind to `0.0.0.0`; defaults to port `8796`. |
+| `just pixel-loci <url> [host] [port]` | Run with a server-side Loci MCP proxy. |
+| `just pixel-health [base_url]` | Check the health endpoint of a running page. |
+| `just check` | Run the existing focused write-gate check. |
+| `just test` | Run the pre-existing workspace test command. |
+| `just typecheck` | Run the prototype workspace typecheck; currently incomplete. |
 
 ## Layout
 
-| File | Role |
-|---|---|
-pnpm workspace plus Turborepo (`apps/*`, `packages/*`), with pnpm pinned by `packageManager`.
-
-| File | Role |
-|---|---|
-| `apps/mobile/src/loci.ts` | One-POST JSON-RPC client for loci plus the structural write gate (`commitPreview` / `commitSave`) |
-| `apps/mobile/src/loci.check.ts` | Run by `pnpm test`. Checks error unwrapping and the dry-run gate |
-| `apps/mobile/src/loci-tools.tsx` | CopilotKit tool registrations and cards. Replaces the starter kit's `apps/mobile/src/tools.tsx`. |
-| `packages/agent-core/src/job-site-prompt.ts` | Runtime prompt. Replaces `MOBILE_FINANCE_PROMPT` in the kit's `/api/mobile-copilotkit` route. |
-
-```bash
-pnpm install
-pnpm test                    # turbo run test
-pnpm typecheck               # turbo run typecheck (red until the kit's app shell is imported, see S2)
-pnpm --filter mobile ios     # after S2
-```
-
-## Next build steps
-
-1. Import the kit at `5c8bf4c` into the same paths: `apps/mobile`, `apps/web`, and `packages/agent-core`. Leave out `apps/channel`.
-   Convert its npm workspace scripts to pnpm/turbo tasks ([S2](docs/spikes/S2-kit-integration.md)).
-2. Add an `expo-camera` snap button to the composer and send `{type:"image"}` content parts. This is risk #1 in the design doc.
-3. Set `EXPO_PUBLIC_LOCI_URL` and `EXPO_PUBLIC_RUNTIME_URL`, then run the twin-valve script from loci's `SATURDAY.md` §4.
+| Path | Role |
+| --- | --- |
+| `apps/pixel-web/index.html` | Responsive Pixel UI and browser interactions. |
+| `apps/pixel-web/server.mjs` | Static server, demo memory, Loci proxy, and preview/commit gate. |
+| `apps/mobile/src/loci.ts` | Earlier React Native Loci client and structural write helpers. |
+| `apps/mobile/src/loci-tools.tsx` | Earlier CopilotKit tool/card prototype. |
+| `docs/design/` | Architecture decisions and the spike conclusion. |
+| `docs/spikes/` | Evidence gathered before narrowing the MVP. |
