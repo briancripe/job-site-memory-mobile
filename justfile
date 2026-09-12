@@ -14,6 +14,6 @@ test:
 typecheck: setup
     pnpm typecheck
 
-# Run the hackathon validation gate against the currently supported test surface.
-check: setup
-    pnpm test
+# Run the existing dependency-free hackathon check without provisioning the unused Expo tree.
+check:
+    node --experimental-strip-types apps/mobile/src/loci.check.ts

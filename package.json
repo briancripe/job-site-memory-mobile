@@ -3,6 +3,7 @@
   "private": true,
   "packageManager": "pnpm@9.12.0",
   "scripts": {
+    "pixel": "node apps/pixel-web/server.mjs",
     "dev": "turbo run dev",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test"
