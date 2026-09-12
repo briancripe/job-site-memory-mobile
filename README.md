@@ -18,6 +18,14 @@ It listens on `0.0.0.0:8787`. Set `PORT` to choose another port. Set `LOCI_MCP_U
 HTTP endpoint to proxy `observe`, `ask`, and preview/commit calls server-side; the URL is never
 sent to the browser. Without it, seeded and newly observed records live only in process memory.
 
+Hackathon Pixel handoff on this Tailscale host:
+
+```bash
+PORT=8796 HOST=0.0.0.0 pnpm pixel
+```
+
+Open `http://100.116.151.118:8796/` on the Pixel while it is connected to the tailnet.
+
 ## Layout
 
 | File | Role |

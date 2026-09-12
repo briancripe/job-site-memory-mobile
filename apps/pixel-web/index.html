@@ -8,12 +8,13 @@
   </style>
 </head>
 <body><main>
-  <header><span class="mode">THROWAWAY DEMO · process memory only</span><h1>Job Site Memory</h1><p>Text-first field notes for a Pixel-sized screen. Nothing is durable until you preview and explicitly Commit.</p></header>
+  <header><span class="mode" id="mode">CHECKING MODE…</span><h1>Job Site Memory</h1><p>Text-first field notes for a Pixel-sized screen. Nothing is durable until you preview and explicitly Commit.</p></header>
   <section class="card"><h2>1 · Observe</h2><label>Place</label><input id="place" value="Basement utility closet"><label>What is it?</label><input id="description" value="Chrome shutoff valve beside water heater"><label>Label (optional)</label><input id="label" placeholder='e.g. 3/4&quot; main shutoff'><button id="observe">Observe</button><div id="observeResult" class="result hidden"></div></section>
   <section class="card"><h2>2 · Ask</h2><label>Place or question context</label><input id="askPlace" value="Basement utility closet"><button id="ask">Ask memory</button><div id="candidates"></div><div id="askResult" class="result hidden"></div></section>
   <section class="card"><h2>3 · Lesson preview</h2><label>Lesson title</label><input id="title" value="Valve status at arrival"><label>What should the next tech know?</label><textarea id="claim">Verify the tag and valve position before restoring water.</textarea><label>Next question</label><input id="next" value="Is the downstream line holding pressure?"><button id="preview" disabled>Preview lesson</button><div id="previewResult" class="result hidden"></div><div class="row"><button id="discard" class="danger" disabled>Discard</button><button id="commit" disabled>Commit explicitly</button></div><div id="commitResult" class="result hidden"></div></section>
   <script>
     const $=id=>document.getElementById(id);let selected=null,token=null;
+    fetch('/health').then(r=>r.json()).then(health=>{$('mode').textContent=health.mode==='loci'?'LOCI MCP · server-side proxy':'THROWAWAY DEMO · process memory only'}).catch(()=>{$('mode').textContent='MODE UNAVAILABLE'});
     async function post(path,data){const r=await fetch(path,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(data)});const value=await r.json();if(!r.ok)throw new Error(value.error||r.statusText);return value}
     function show(id,value){$(id).textContent=typeof value==='string'?value:JSON.stringify(value,null,2);$(id).classList.remove('hidden')}
     $('observe').onclick=async()=>{try{const r=await post('/api/observe',{place_label:$('place').value,description:$('description').value,user_label:$('label').value});selected=r.object?.object_id;show('observeResult',r);$('preview').disabled=!selected}catch(e){show('observeResult',e.message)}};
