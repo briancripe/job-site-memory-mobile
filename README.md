@@ -6,6 +6,18 @@ dictates a question, and gets back an arrival brief. When two objects look alike
 
 Prototype: local-only, not yet built against the kit. See [docs/DESIGN.md](docs/DESIGN.md).
 
+## Pixel browser MVP
+
+Run the dependency-free, throwaway demo from the repository root:
+
+```bash
+pnpm pixel
+```
+
+It listens on `0.0.0.0:8787`. Set `PORT` to choose another port. Set `LOCI_MCP_URL` to an MCP
+HTTP endpoint to proxy `observe`, `ask`, and preview/commit calls server-side; the URL is never
+sent to the browser. Without it, seeded and newly observed records live only in process memory.
+
 ## Layout
 
 | File | Role |
