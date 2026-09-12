@@ -1,0 +1,17 @@
+{
+  "name": "job-site-memory-mobile",
+  "private": true,
+  "packageManager": "pnpm@9.12.0",
+  "scripts": {
+    "dev": "turbo run dev",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test"
+  },
+  "devDependencies": {
+    "turbo": "^2",
+    "typescript": "~5.9.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
