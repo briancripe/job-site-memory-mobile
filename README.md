@@ -8,23 +8,32 @@ Prototype: local-only, not yet built against the kit. See [docs/DESIGN.md](docs/
 
 ## Pixel browser MVP
 
-Run the dependency-free, throwaway demo from the repository root:
+Run the dependency-free Pixel bridge from the repository root. Both URLs stay in the server
+environment and are never sent to the phone; the remote runtime owns its model and Ambiguous
+credentials.
 
 ```bash
+COPILOTKIT_RUNTIME_URL=http://<runtime-host>:3100/api/copilotkit \
+LOCI_MCP_URL=https://<loci-host>/loci-<capability>/mcp \
 pnpm pixel
 ```
 
-It listens on `0.0.0.0:8787`. Set `PORT` to choose another port. Set `LOCI_MCP_URL` to an MCP
-HTTP endpoint to proxy `observe`, `ask`, and preview/commit calls server-side; the URL is never
-sent to the browser. Without it, seeded and newly observed records live only in process memory.
+It listens on `0.0.0.0:8787`. `COPILOTKIT_RUNTIME_URL` is the existing CopilotKit base route;
+the server appends `/agent/default/run`. `LOCI_MCP_URL` is used server-side for candidate
+confirmation and preview/Commit. Without those variables the page reports the missing connection;
+its old process-memory fallback remains useful only for UI work.
 
 Hackathon Pixel handoff on this Tailscale host:
 
 ```bash
+COPILOTKIT_RUNTIME_URL=http://100.116.151.118:3100/api/copilotkit \
 PORT=8796 HOST=0.0.0.0 pnpm pixel
 ```
 
 Open `http://100.116.151.118:8796/` on the Pixel while it is connected to the tailnet.
+Enter the room/zone, tap **Take or choose a photo**, then **Identify object & pull handoff**.
+If Loci returns visually similar objects, tap the correct candidate; that tap resolves by its
+`object_id`. To save a new lesson, preview it and then tap **Commit explicitly**.
 
 ## Layout
 

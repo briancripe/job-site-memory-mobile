@@ -1,10 +1,12 @@
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
+import { normalizeAskResult, readRuntimeEvents, visionPrompt } from "./loci-response.mjs";
 
 const host = process.env.HOST || "0.0.0.0";
 const port = Number(process.env.PORT || 8787);
 const lociUrl = process.env.LOCI_MCP_URL;
+const runtimeUrl = process.env.COPILOTKIT_RUNTIME_URL || process.env.RUNTIME_URL;
 const page = await readFile(new URL("./index.html", import.meta.url));
 const objects = new Map();
 const previewTokens = new Map();
@@ -25,7 +27,7 @@ async function body(req) {
   let raw = "";
   for await (const chunk of req) {
     raw += chunk;
-    if (raw.length > 100_000) throw new Error("Request too large");
+    if (raw.length > 12_000_000) throw new Error("Request too large");
   }
   return raw ? JSON.parse(raw) : {};
 }
@@ -39,6 +41,42 @@ async function callLoci(name, args) {
   const result = await response.json();
   if (!response.ok || result.error || result.result?.isError) throw new Error(result.error?.message || `Loci ${name} failed`);
   return result.result?.structuredContent;
+}
+
+async function inspectWithRuntime({ place, image }) {
+  if (!runtimeUrl) throw new Error("COPILOTKIT_RUNTIME_URL is not configured on this server");
+  if (!place?.trim()) throw new Error("Say or enter the room/zone before taking the photo");
+  if (!image?.data || !String(image.mimeType || "").startsWith("image/")) throw new Error("Choose a camera image first");
+  if (String(image.data).length > 10_000_000) throw new Error("Image is too large; use a smaller camera capture");
+  const endpoint = runtimeUrl.endsWith("/run")
+    ? runtimeUrl
+    : `${runtimeUrl.replace(/\/$/, "")}/agent/default/run`;
+  const threadId = randomUUID();
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: { "content-type": "application/json", accept: "text/event-stream" },
+    body: JSON.stringify({
+      threadId,
+      runId: randomUUID(),
+      state: {},
+      tools: [],
+      context: [],
+      forwardedProps: {},
+      messages: [{
+        id: randomUUID(),
+        role: "user",
+        content: [
+          { type: "text", text: visionPrompt(place.trim()) },
+          { type: "image", source: { type: "data", value: String(image.data), mimeType: image.mimeType } },
+        ],
+      }],
+    }),
+  });
+  const transcript = await response.text();
+  if (!response.ok) throw new Error(`Vision runtime failed (HTTP ${response.status})`);
+  const parsed = readRuntimeEvents(transcript);
+  if (!parsed.loci) throw new Error(parsed.answer || "Vision runtime did not return a Loci ask result");
+  return { memory: normalizeAskResult(parsed.loci), answer: parsed.answer };
 }
 
 function cleanDraft(input) {
@@ -74,16 +112,25 @@ function demo(name, args) {
 createServer(async (req, res) => {
   try {
     const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
-    if (req.method === "GET" && url.pathname === "/health") return json(res, 200, { ok: true, mode: lociUrl ? "loci" : "throwaway-demo", host, port });
+    if (req.method === "GET" && url.pathname === "/health") return json(res, 200, {
+      ok: true,
+      mode: runtimeUrl && lociUrl ? "vision+loci" : lociUrl ? "loci-only" : "throwaway-demo",
+      vision_runtime: Boolean(runtimeUrl),
+      loci: Boolean(lociUrl),
+      host,
+      port,
+    });
     if (req.method === "GET" && url.pathname === "/") {
       res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
       return res.end(page);
     }
     if (req.method !== "POST") return json(res, 404, { error: "Not found" });
     const input = await body(req);
+    if (url.pathname === "/api/bridge") return json(res, 200, await inspectWithRuntime(input));
     if (url.pathname === "/api/observe" || url.pathname === "/api/ask") {
       const name = url.pathname.slice(5);
-      return json(res, 200, lociUrl ? await callLoci(name, input) : demo(name, input));
+      const result = lociUrl ? await callLoci(name, input) : demo(name, input);
+      return json(res, 200, name === "ask" ? normalizeAskResult(result) : result);
     }
     if (url.pathname === "/api/preview") {
       const draft = cleanDraft(input);
@@ -114,4 +161,4 @@ createServer(async (req, res) => {
   } catch (error) {
     return json(res, 400, { error: error instanceof Error ? error.message : String(error) });
   }
-}).listen(port, host, () => console.log(`Pixel MVP (${lociUrl ? "Loci proxy" : "throwaway demo"}) listening on http://${host}:${port}`));
+}).listen(port, host, () => console.log(`Pixel object bridge (${runtimeUrl ? "vision runtime" : "no vision"}; ${lociUrl ? "Loci proxy" : "throwaway memory"}) listening on http://${host}:${port}`));
